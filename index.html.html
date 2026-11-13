@@ -1,0 +1,1873 @@
+<!DOCTYPE html>
+<html lang="am" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Cafe - Realtime Ordering System</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts (Noto Sans Ethiopic & Inter) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Ethiopic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Firebase Compatibility Libraries for Single-File Web Apps -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            teal: {
+              50: '#F2FBF8',
+              100: '#CCFBF1',
+              500: '#14B8A6',
+              600: '#0D9488',
+              700: '#0F766E',
+              800: '#115E59',
+              900: '#064E3B',
+              950: '#022C22',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'Noto Sans Ethiopic', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', 'Noto Sans Ethiopic', sans-serif; }
+    .pulse-glow { animation: pulseGlow 1.5s infinite alternate; }
+    @keyframes pulseGlow {
+      0% { box-shadow: 0 0 5px rgba(20, 184, 166, 0.4); }
+      100% { box-shadow: 0 0 20px rgba(20, 184, 166, 0.9); }
+    }
+    .flash-alert { animation: alertFlash 1s infinite alternate; }
+    @keyframes alertFlash {
+      0% { background-color: #FEF2F2; border-color: #EF4444; }
+      100% { background-color: #FEE2E2; border-color: #B91C1C; }
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #0D9488; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-teal-50 text-slate-800 min-h-full flex flex-col antialiased selection:bg-teal-500 selection:text-white">
+
+  <!-- ==================== TOP CATERING BANNER ==================== -->
+  <div class="bg-gradient-to-r from-teal-950 via-teal-900 to-teal-800 text-teal-100 py-2 px-4 text-xs sm:text-sm font-medium flex justify-between items-center shadow-md">
+    <div class="flex items-center space-x-2 space-x-reverse">
+      <span class="bg-teal-600 text-white text-xs px-2 py-0.5 rounded-full font-bold uppercase tracking-wider animate-pulse">
+        <i class="fa-solid font-bold fa-crown mr-1"></i> Special Event
+      </span>
+      <span id="bannerText">ለሠርግ፣ ለልደትና ለስብሰባዎች በታላቅ ቅናሽ የኬተሪንግ አገልግሎት እንሰጣለን!</span>
+    </div>
+    <div class="flex items-center space-x-3 space-x-reverse">
+      <a href="tel:0911234567" class="bg-amber-500 hover:bg-amber-600 text-teal-950 px-3 py-1 rounded-full font-bold text-xs flex items-center transition">
+        <i class="fa-solid fa-phone mr-1.5"></i> 0911-23-45-67
+      </a>
+      <!-- Language Switcher -->
+      <button onclick="toggleLanguage()" class="bg-teal-800 hover:bg-teal-700 text-white px-2.5 py-1 rounded-md text-xs font-semibold border border-teal-600 transition flex items-center">
+        <i class="fa-solid fa-globe mr-1"></i>
+        <span id="langBtnText">English</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== HEADER & ROLE NAVIGATION ==================== -->
+  <header class="bg-teal-900 text-white shadow-lg sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+      <!-- Logo & Status -->
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center shadow-inner text-white font-extrabold text-xl border border-teal-400">
+          ☕
+        </div>
+        <div>
+          <h1 class="text-xl font-black tracking-tight flex items-center gap-2">
+            SMART CAFE 
+            <span class="text-xs bg-teal-800 text-teal-200 px-2 py-0.5 rounded-full border border-teal-600 font-normal" id="appSubHeading">ስማርት ካፌ</span>
+          </h1>
+          <!-- Realtime Sync Badge -->
+          <div class="flex items-center text-xs mt-0.5">
+            <span id="syncBadge" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-900 text-amber-200 border border-amber-600">
+              🟡 Demo Local Mode
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs (Only visible in Full Admin Mode or when ?role is not specified) -->
+      <nav id="roleTabs" class="flex flex-wrap gap-1 bg-teal-950 p-1 rounded-xl border border-teal-800">
+        <button onclick="switchView('customer')" id="tab-customer" class="role-tab px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 bg-teal-700 text-white shadow">
+          <i class="fa-solid fa-mobile-screen"></i> <span data-i18n="tabCustomer">የደንበኛ ገጽ</span>
+        </button>
+        <button onclick="switchView('kitchen')" id="tab-kitchen" class="role-tab px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 text-teal-200 hover:text-white hover:bg-teal-800">
+          <i class="fa-solid fa-utensils"></i> <span data-i18n="tabKitchen">1. ኪችን ታብሌት</span>
+          <span id="kitchenBadge" class="hidden bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-extrabold animate-bounce">0</span>
+        </button>
+        <button onclick="switchView('barista')" id="tab-barista" class="role-tab px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 text-teal-200 hover:text-white hover:bg-teal-800">
+          <i class="fa-solid fa-mug-hot"></i> <span data-i18n="tabBarista">2. ባሬስታ ታብሌት</span>
+          <span id="baristaBadge" class="hidden bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-extrabold animate-bounce">0</span>
+        </button>
+        <button onclick="switchView('cashier')" id="tab-cashier" class="role-tab px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 text-teal-200 hover:text-white hover:bg-teal-800">
+          <i class="fa-solid fa-cash-register"></i> <span data-i18n="tabCashier">3. ካሸር POS</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Admin URL Quick Selector (Only in Default/Full Mode) -->
+    <div id="urlBar" class="bg-teal-950 text-teal-300 py-1.5 px-4 text-xs border-t border-teal-800/60 flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center space-x-2">
+        <i class="fa-solid fa-link text-teal-400"></i>
+        <span class="font-semibold text-teal-200" data-i18n="urlBarLabel">ለየታብሌቶቹ የሚሆን የURL ሊንኮች፦</span>
+      </div>
+      <div class="flex flex-wrap gap-2 text-[11px]">
+        <button onclick="copyRoleUrl('kitchen')" class="bg-teal-900 hover:bg-teal-800 text-teal-200 px-2 py-0.5 rounded border border-teal-700">
+          📋 Kitchen: <code class="text-teal-400">?role=kitchen</code>
+        </button>
+        <button onclick="copyRoleUrl('barista')" class="bg-teal-900 hover:bg-teal-800 text-teal-200 px-2 py-0.5 rounded border border-teal-700">
+          📋 Barista: <code class="text-teal-400">?role=barista</code>
+        </button>
+        <button onclick="copyRoleUrl('cashier')" class="bg-teal-900 hover:bg-teal-800 text-teal-200 px-2 py-0.5 rounded border border-teal-700">
+          📋 Cashier: <code class="text-teal-400">?role=cashier</code>
+        </button>
+        <button onclick="copyRoleUrl('customer', 1)" class="bg-teal-900 hover:bg-teal-800 text-teal-200 px-2 py-0.5 rounded border border-teal-700">
+          📋 Table 1: <code class="text-teal-400">?role=customer&table=1</code>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN CONTENT AREA ==================== -->
+  <main class="flex-grow max-w-7xl w-full mx-auto p-3 sm:p-6">
+
+    <!-- ================================================================= -->
+    <!-- VIEW 1: CUSTOMER VIEW (?role=customer&table=N)                    -->
+    <!-- ================================================================= -->
+    <section id="view-customer" class="space-y-6">
+      
+      <!-- Table Selector Header (Hidden when locked by URL ?table=N) -->
+      <div id="tableSelectorCard" class="bg-white rounded-2xl p-4 shadow-sm border border-teal-100 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-teal-950 flex items-center gap-2">
+            <i class="fa-solid fa-chair text-teal-600"></i>
+            <span data-i18n="selectTableHeader">የጠረጴዛ ቁጥርዎን ይምረጡ</span>
+          </h2>
+          <p class="text-xs text-slate-500" data-i18n="selectTableSub">በQR Code ከገቡ ጠረጴዛዎ በራሱ ይመረጣል</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-sm font-semibold text-slate-700" data-i18n="tableLabel">ጠረጴዛ፦</label>
+          <select id="activeTableSelect" onchange="changeActiveCustomerTable(this.value)" class="bg-teal-50 border border-teal-300 rounded-xl px-3 py-2 font-bold text-teal-900 text-base focus:ring-2 focus:ring-teal-500 outline-none">
+            <!-- Table 1 to 10 options dynamically populated -->
+          </select>
+        </div>
+      </div>
+
+      <!-- ACTIVE ORDER LOCK / ACTIVE BILL CARD (Appears when table has placed an order) -->
+      <div id="customerActiveBillCard" class="hidden bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-400 rounded-2xl p-5 shadow-lg space-y-4">
+        <div class="flex justify-between items-start border-b border-amber-200 pb-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="bg-amber-500 text-white text-xs px-2.5 py-0.5 rounded-full font-bold uppercase" data-i18n="activeBillBadge">ገባሪ ትዕዛዝ</span>
+              <h3 class="font-extrabold text-amber-950 text-lg" id="activeBillTitle">ጠረጴዛ #1 - ትዕዛዝ #101</h3>
+            </div>
+            <p class="text-xs text-amber-800 mt-1" id="activeBillStatusText">ትዕዛዝዎ ወደ ኪችንና ባሬስታ ተልኳል። ይዘጋጃል!</p>
+          </div>
+          <button onclick="callWaiterPrompt()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-2 rounded-xl shadow transition flex items-center gap-1.5">
+            <i class="fa-solid fa-bell"></i> <span data-i18n="callWaiterBtn">አስተናጋጅ ጥራ</span>
+          </button>
+        </div>
+
+        <!-- Add-on Lock Status Banner -->
+        <div id="addonPendingBanner" class="hidden bg-amber-200/80 border border-amber-400 text-amber-900 text-xs p-3 rounded-xl font-medium flex items-center gap-2">
+          <i class="fa-solid fa-clock-rotate-left text-amber-700 text-base animate-spin"></i>
+          <span data-i18n="addonPendingText">የጨመሩት ተጨማሪ ትዕዛዝ በካሸር እስከሚረጋገጥ ድረስ በመጠባበቅ ላይ ነው...</span>
+        </div>
+
+        <!-- Ordered Items List -->
+        <div class="space-y-2" id="activeBillItems">
+          <!-- Dynamically populated -->
+        </div>
+
+        <div class="flex justify-between items-center pt-2 border-t border-amber-200 text-sm">
+          <span class="font-bold text-amber-900" data-i18n="totalBillLabel">ጠቅላላ ሂሳብ፦</span>
+          <span class="font-extrabold text-amber-950 text-xl" id="activeBillTotal">0.00 ETB</span>
+        </div>
+      </div>
+
+      <!-- Category Filter Tabs -->
+      <div class="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
+        <button onclick="filterCategory('all')" class="cat-btn bg-teal-800 text-white px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap shadow transition" data-cat="all" data-i18n="catAll">ሁሉም (All)</button>
+        <button onclick="filterCategory('food')" class="cat-btn bg-white hover:bg-teal-50 text-teal-900 border border-teal-200 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition" data-cat="food" data-i18n="catFood">🍽️ ምግብ (Food)</button>
+        <button onclick="filterCategory('hot')" class="cat-btn bg-white hover:bg-teal-50 text-teal-900 border border-teal-200 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition" data-cat="hot" data-i18n="catHot">☕ ሙቅ መጠጥ (Hot Drinks)</button>
+        <button onclick="filterCategory('juice')" class="cat-btn bg-white hover:bg-teal-50 text-teal-900 border border-teal-200 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition" data-cat="juice" data-i18n="catJuice">🍹 ጁስ (Fresh Juices)</button>
+        <button onclick="filterCategory('soft')" class="cat-btn bg-white hover:bg-teal-50 text-teal-900 border border-teal-200 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition" data-cat="soft" data-i18n="catSoft">🥤 ለስላሳ (Soft Drinks)</button>
+        <button onclick="filterCategory('special')" class="cat-btn bg-white hover:bg-teal-50 text-teal-900 border border-teal-200 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition" data-cat="special" data-i18n="catSpecial">⭐ የቤቱ ልዩ (Specials)</button>
+      </div>
+
+      <!-- Food Menu Grid (18 Items) -->
+      <div id="menuGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Floating Cart Bottom Bar -->
+      <div id="floatingCartBar" class="fixed bottom-4 left-4 right-4 max-w-xl mx-auto bg-teal-950 text-white rounded-2xl p-4 shadow-2xl z-30 border border-teal-700 flex justify-between items-center transform transition-all duration-300 translate-y-32">
+        <div class="flex items-center gap-3">
+          <div class="relative bg-teal-700 p-2.5 rounded-xl">
+            <i class="fa-solid fa-utensils text-lg"></i>
+            <span id="cartBadge" class="absolute -top-2 -right-2 bg-amber-500 text-teal-950 text-xs font-black w-5 h-5 rounded-full flex items-center justify-center">0</span>
+          </div>
+          <div>
+            <div class="text-xs text-teal-300" data-i18n="totalOrder">የተመረጡ እቃዎች</div>
+            <div class="text-lg font-black text-amber-400" id="cartTotalSum">0.00 ETB</div>
+          </div>
+        </div>
+        <button onclick="openCartModal()" class="bg-teal-500 hover:bg-teal-600 text-teal-950 px-5 py-2.5 rounded-xl font-extrabold text-sm shadow transition flex items-center gap-2">
+          <span id="cartActionBtnText" data-i18n="viewCart">ትዕዛዝ ተመልከት</span>
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
+
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- VIEW 2: KITCHEN TABLET 1 (?role=kitchen)                         -->
+    <!-- ================================================================= -->
+    <section id="view-kitchen" class="hidden space-y-4">
+      <div class="bg-teal-900 text-white p-4 rounded-2xl shadow flex justify-between items-center border border-teal-700">
+        <div class="flex items-center gap-3">
+          <div class="bg-teal-700 p-3 rounded-xl text-2xl">👨‍🍳</div>
+          <div>
+            <h2 class="text-xl font-black" data-i18n="kitchenTitle">ታብሌት 1፦ የኪችን ትዕዛዞች (Kitchen KDS)</h2>
+            <p class="text-xs text-teal-200" data-i18n="kitchenSub">የምግብ ትዕዛዞች እዚህ በቅጽበት ይደርሳሉ</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs bg-teal-800 text-teal-200 px-3 py-1.5 rounded-lg border border-teal-600 font-bold" id="kitchenCountBadge">
+            0 ንቁ ትዕዛዞች
+          </span>
+        </div>
+      </div>
+
+      <!-- Kitchen Orders Grid -->
+      <div id="kitchenOrdersGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Rendered Dynamically -->
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- VIEW 3: BARISTA TABLET 2 (?role=barista)                         -->
+    <!-- ================================================================= -->
+    <section id="view-barista" class="hidden space-y-4">
+      <div class="bg-teal-900 text-white p-4 rounded-2xl shadow flex justify-between items-center border border-teal-700">
+        <div class="flex items-center gap-3">
+          <div class="bg-teal-700 p-3 rounded-xl text-2xl">☕</div>
+          <div>
+            <h2 class="text-xl font-black" data-i18n="baristaTitle">ታብሌት 2፦ የባሬስታ ትዕዛዞች (Barista KDS)</h2>
+            <p class="text-xs text-teal-200" data-i18n="baristaSub">የሙቅ መጠጦችና የጁስ ትዕዛዞች እዚህ ይደርሳሉ</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs bg-teal-800 text-teal-200 px-3 py-1.5 rounded-lg border border-teal-600 font-bold" id="baristaCountBadge">
+            0 ንቁ ትዕዛዞች
+          </span>
+        </div>
+      </div>
+
+      <!-- Barista Orders Grid -->
+      <div id="baristaOrdersGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Rendered Dynamically -->
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- VIEW 4: CASHIER POS TABLET 3 (?role=cashier)                     -->
+    <!-- ================================================================= -->
+    <section id="view-cashier" class="hidden space-y-6">
+      
+      <!-- Top Alert Bar for Waiter Calls & Ready Notifications -->
+      <div id="cashierAlertsContainer" class="space-y-2">
+        <!-- Alerts appended here -->
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Left 2 Cols: Active Tables Grid & Pending Add-ons -->
+        <div class="lg:col-span-2 space-y-6">
+          
+          <!-- Pending Add-ons Approval Section -->
+          <div id="cashierPendingAddonsCard" class="hidden bg-amber-50 border-2 border-amber-400 rounded-2xl p-4 shadow space-y-3">
+            <h3 class="font-extrabold text-amber-950 text-sm flex items-center gap-2">
+              <i class="fa-solid fa-circle-exclamation text-amber-600"></i>
+              <span data-i18n="pendingAddonsHeader">የተጨማሪ ትዕዛዝ ማረጋገጫ (Pending Add-ons)</span>
+            </h3>
+            <div id="pendingAddonsList" class="space-y-2">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- All Tables Live Status Grid (Tables 1-10) -->
+          <div class="bg-white rounded-2xl p-5 shadow-sm border border-teal-100 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+              <h3 class="font-extrabold text-teal-950 text-base flex items-center gap-2">
+                <i class="fa-solid fa-border-all text-teal-600"></i>
+                <span data-i18n="cashierTablesHeader">የጠረጴዛዎች ሁኔታ (Tables Live Overview)</span>
+              </h3>
+              <span class="text-xs text-slate-500" data-i18n="cashierTablesSub">ክፍያ ለመቀበል ወይም ጠረጴዛ ለማጽዳት ይጫኑ</span>
+            </div>
+            
+            <div id="cashierTablesGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+              <!-- Tables 1 to 10 rendered dynamically -->
+            </div>
+          </div>
+
+          <!-- Manual POS Builder (Walk-in / Takeaway / non-QR) -->
+          <div class="bg-white rounded-2xl p-5 shadow-sm border border-teal-100 space-y-4">
+            <div class="flex justify-between items-center border-b pb-3">
+              <div>
+                <h3 class="font-extrabold text-teal-950 text-base flex items-center gap-2">
+                  <i class="fa-solid fa-cash-register text-teal-600"></i>
+                  <span data-i18n="manualPosHeader">በካሸር ቀጥታ መሸጫ (Walk-in / Takeaway POS)</span>
+                </h3>
+                <p class="text-xs text-slate-500" data-i18n="manualPosSub">ከስካን ውጪ ለሚመጡ ደንበኞች እዚሁ ትዕዛዝ መዝግብ</p>
+              </div>
+              <span class="bg-teal-100 text-teal-800 text-xs px-2.5 py-1 rounded-full font-bold" data-i18n="manualTag">[ከስካን ውጪ / Walk-in]</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-600 mb-1" data-i18n="selectMenuLabel">ምግብ/መጠጥ ምረጥ፦</label>
+                <select id="manualItemSelect" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-semibold focus:ring-2 focus:ring-teal-500">
+                  <!-- Dynamically populated options -->
+                </select>
+              </div>
+              <div class="flex items-end gap-2">
+                <div class="w-24">
+                  <label class="block text-xs font-medium text-slate-600 mb-1" data-i18n="qtyLabel">ብዛት፦</label>
+                  <input type="number" id="manualItemQty" min="1" value="1" class="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-center">
+                </div>
+                <button onclick="addManualItemToBill()" class="flex-grow bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs py-2.5 rounded-xl transition shadow">
+                  <i class="fa-solid fa-plus mr-1"></i> <span data-i18n="addItemBtn">ጨምር</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Manual Order Bill Cart -->
+            <div id="manualOrderBillContainer" class="hidden bg-teal-50 rounded-xl p-3 border border-teal-200 space-y-2">
+              <div class="text-xs font-bold text-teal-950 border-b border-teal-200 pb-1" data-i18n="manualCurrentBill">ወቅታዊ የWalk-in ሂሳብ ዝርዝር፦</div>
+              <div id="manualBillItems" class="space-y-1 text-xs">
+                <!-- Dynamically populated -->
+              </div>
+              <div class="flex justify-between items-center pt-2 border-t border-teal-200">
+                <span class="font-bold text-xs text-teal-950" data-i18n="manualTotal">ድምር፦</span>
+                <span id="manualBillTotalText" class="font-black text-sm text-teal-900">0.00 ETB</span>
+              </div>
+              <button onclick="submitManualOrder()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs py-2.5 rounded-xl shadow transition">
+                <i class="fa-solid fa-check-circle mr-1"></i> <span data-i18n="submitManualBtn">ትዕዛዝ አጽድቅና ክፍያ ተቀበል</span>
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Right 1 Col: End of Day Summary & Word Download -->
+        <div class="space-y-6">
+          
+          <div class="bg-white rounded-2xl p-5 shadow-sm border border-teal-100 space-y-4">
+            <h3 class="font-extrabold text-teal-950 text-base border-b pb-2 flex items-center justify-between">
+              <span><i class="fa-solid fa-chart-line text-teal-600 mr-1.5"></i> <span data-i18n="eodHeader">የዕለቱ የሽያጭ ሪፖርት</span></span>
+              <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded" id="todayDateLabel"></span>
+            </h3>
+
+            <!-- Revenue Metrics Cards -->
+            <div class="grid grid-cols-2 gap-2">
+              <div class="bg-teal-50 p-3 rounded-xl border border-teal-100">
+                <div class="text-[11px] text-teal-700 font-medium" data-i18n="qrScanRevenue">ከQR Scan ሽያጭ</div>
+                <div class="text-sm font-black text-teal-950 mt-1" id="eodQrRevenue">0.00 ETB</div>
+              </div>
+              <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
+                <div class="text-[11px] text-emerald-700 font-medium" data-i18n="walkInRevenue">ከWalk-in ሽያጭ</div>
+                <div class="text-sm font-black text-emerald-950 mt-1" id="eodWalkInRevenue">0.00 ETB</div>
+              </div>
+            </div>
+
+            <div class="bg-teal-900 text-white p-4 rounded-xl shadow-inner space-y-1">
+              <div class="text-xs text-teal-200" data-i18n="totalRevenue">ጠቅላላ የዛሬ ገቢ (Total Revenue)</div>
+              <div class="text-2xl font-black text-amber-400" id="eodTotalRevenue">0.00 ETB</div>
+              <div class="text-[10px] text-teal-300" id="eodTotalOrdersCount">0 የተጠናቀቁ ትዕዛዞች</div>
+            </div>
+
+            <!-- Best Sellers Ranked List -->
+            <div>
+              <h4 class="font-bold text-xs text-slate-700 mb-2" data-i18n="bestSellersTitle">🏆 ተወዳጅ ምግቦችና መጠጦች (Ranked Best-Sellers)</h4>
+              <div id="eodBestSellers" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar text-xs">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+
+            <!-- Download Word Report Button -->
+            <button onclick="downloadWordReport()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs py-3 rounded-xl shadow transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-file-word text-base"></i>
+              <span data-i18n="downloadWordBtn">📄 የዕለቱን ሪፖርት በ Word (.doc) አውርድ</span>
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ==================== HOUSE SPECIAL WELCOME POPUP MODAL ==================== -->
+  <div id="specialWelcomeModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl transform transition-all border border-teal-100">
+      <div class="relative h-48 bg-teal-900">
+        <img src="https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80" alt="House Special" class="w-full h-full object-cover opacity-85">
+        <div class="absolute inset-0 bg-gradient-to-t from-teal-950 via-teal-950/40 to-transparent"></div>
+        <button onclick="closeSpecialModal()" class="absolute top-3 right-3 bg-black/40 hover:bg-black/60 text-white w-8 h-8 rounded-full flex items-center justify-center text-sm">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <div class="absolute bottom-3 left-4 right-4">
+          <span class="bg-amber-500 text-teal-950 font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wide">
+            ⭐ Today's Special
+          </span>
+          <h3 class="text-xl font-black text-white mt-1" id="specialModalTitle">ልዩ የካፌ ቁርስና አበሻ ቲክስ</h3>
+        </div>
+      </div>
+      <div class="p-5 space-y-4">
+        <p class="text-xs text-slate-600 leading-relaxed" id="specialModalDesc">
+          በዛሬው ዕለት በልዩ ፍቅርና በጥራት የተዘጋጀውን የቤታችንን ልዩ ምግብ ይጋብዙ!
+        </p>
+        <div class="flex items-center justify-between bg-teal-50 p-3 rounded-2xl border border-teal-100">
+          <div>
+            <span class="text-[10px] text-teal-700 font-bold block" data-i18n="specialPriceLabel">ልዩ ዋጋ</span>
+            <span class="text-lg font-black text-teal-950">350.00 ETB</span>
+          </div>
+          <button onclick="orderSpecialItem()" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow transition flex items-center gap-1.5">
+            <i class="fa-solid fa-cart-plus"></i> <span data-i18n="orderNowBtn">አሁን እዘዝ</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CUSTOMER CART / ORDER MODAL ==================== -->
+  <div id="cartModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+      <div class="bg-teal-900 text-white p-4 flex justify-between items-center">
+        <div>
+          <h3 class="font-extrabold text-base flex items-center gap-2">
+            <i class="fa-solid fa-basket-shopping text-teal-400"></i>
+            <span data-i18n="cartModalTitle">የትዕዛዝዎ ማጠቃለያ</span>
+          </h3>
+          <p class="text-xs text-teal-200" id="cartModalTableLabel">ጠረጴዛ #1</p>
+        </div>
+        <button onclick="closeCartModal()" class="text-teal-200 hover:text-white text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-4 overflow-y-auto space-y-3 flex-grow custom-scrollbar" id="cartModalItems">
+        <!-- Rendered Dynamically -->
+      </div>
+
+      <div class="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
+        <div class="flex justify-between items-center text-sm">
+          <span class="font-bold text-slate-700" data-i18n="cartTotalLabel">ጠቅላላ ሂሳብ፦</span>
+          <span class="font-black text-teal-950 text-xl" id="cartModalTotalSum">0.00 ETB</span>
+        </div>
+        <button onclick="confirmCustomerOrderSubmit()" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-extrabold py-3 rounded-2xl shadow transition text-sm flex items-center justify-center gap-2">
+          <i class="fa-solid fa-paper-plane"></i>
+          <span data-i18n="sendOrderBtn">ትዕዛዙን አስተላልፍ (Confirm & Send Order)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CUSTOM ALERT / NOTIFICATION MODAL ==================== -->
+  <div id="customNoticeModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 text-center shadow-2xl border border-teal-100 space-y-4">
+      <div class="w-12 h-12 bg-teal-100 text-teal-700 rounded-full flex items-center justify-center mx-auto text-xl" id="noticeIcon">
+        ℹ️
+      </div>
+      <h3 class="font-bold text-slate-800 text-base" id="noticeTitle">ማስታወቂያ</h3>
+      <p class="text-xs text-slate-600 leading-relaxed" id="noticeMessage">መልእክት...</p>
+      <button onclick="closeNoticeModal()" class="w-full bg-teal-700 hover:bg-teal-800 text-white font-bold py-2.5 rounded-xl text-xs transition">
+        እሺ (OK)
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== JAVASCRIPT LOGIC & FIREBASE SYNC ==================== -->
+  <script>
+    /* ========================================================================
+       1. FIREBASE CONFIGURATION & INITIALIZATION
+       ------------------------------------------------------------------------
+       Replace the placeholder keys below with your real Google Firebase Realtime Database
+       config credentials. When valid credentials are present, all 4 physical devices
+       will synchronize instantly over the internet!
+       ======================================================================== */
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+      projectId: "YOUR_PROJECT",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    let isFirebaseConnected = false;
+    let dbRef = null;
+
+    // Check if configuration is updated from default placeholders
+    function initFirebase() {
+      const isPlaceholder = !firebaseConfig.apiKey || 
+                            firebaseConfig.apiKey === "YOUR_API_KEY" || 
+                            firebaseConfig.databaseURL.includes("YOUR_PROJECT");
+      
+      const badge = document.getElementById('syncBadge');
+
+      if (!isPlaceholder && typeof firebase !== 'undefined') {
+        try {
+          if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+          }
+          dbRef = firebase.database().ref('smartCafeState');
+          isFirebaseConnected = true;
+          
+          if (badge) {
+            badge.className = "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950 text-emerald-300 border border-emerald-600";
+            badge.innerHTML = '🟢 Cloud Sync Live (Firebase Realtime)';
+          }
+
+          // Listen for remote changes from other connected devices
+          dbRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+              appState = data;
+              saveStateToLocal();
+              renderCurrentView();
+              checkNewOrderAlerts();
+            }
+          });
+
+        } catch (err) {
+          console.warn("Firebase initialization failed, falling back to local storage mode:", err);
+          setupLocalDemoMode(badge);
+        }
+      } else {
+        setupLocalDemoMode(badge);
+      }
+    }
+
+    function setupLocalDemoMode(badge) {
+      isFirebaseConnected = false;
+      if (badge) {
+        badge.className = "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-900 text-amber-200 border border-amber-600";
+        badge.innerHTML = '🟡 Demo Local Mode (Add Firebase Config)';
+      }
+    }
+
+    /* ========================================================================
+       2. TRANSLATIONS & DICTIONARY (Amharic & English)
+       ======================================================================== */
+    let currentLang = 'am';
+
+    const translations = {
+      am: {
+        bannerText: "ለሠርግ፣ ለልደትና ለስብሰባዎች በታላቅ ቅናሽ የኬተሪንግ አገልግሎት እንሰጣለን!",
+        langBtnText: "English",
+        appSubHeading: "ስማርት ካፌ",
+        tabCustomer: "የደንበኛ ገጽ",
+        tabKitchen: "1. ኪችን ታብሌት",
+        tabBarista: "2. ባሬስታ ታብሌት",
+        tabCashier: "3. ካሸር POS",
+        urlBarLabel: "ለየታብሌቶቹ የሚሆን የURL ሊንኮች፦",
+        selectTableHeader: "የጠረጴዛ ቁጥርዎን ይምረጡ",
+        selectTableSub: "በQR Code ከገቡ ጠረጴዛዎ በራሱ ይመረጣል",
+        tableLabel: "ጠረጴዛ፦",
+        activeBillBadge: "ገባሪ ትዕዛዝ",
+        callWaiterBtn: "አስተናጋጅ ጥራ",
+        addonPendingText: "የጨመሩት ተጨማሪ ትዕዛዝ በካሸር እስከሚረጋገጥ ድረስ በመጠባበቅ ላይ ነው...",
+        totalBillLabel: "ጠቅላላ ሂሳብ፦",
+        catAll: "ሁሉም (All)",
+        catFood: "🍽️ ምግብ (Food)",
+        catHot: "☕ ሙቅ መጠጥ (Hot Drinks)",
+        catJuice: "🍹 ጁስ (Fresh Juices)",
+        catSoft: "🥤 ለስላሳ (Soft Drinks)",
+        catSpecial: "⭐ የቤቱ ልዩ (Specials)",
+        totalOrder: "የተመረጡ እቃዎች",
+        viewCart: "ትዕዛዝ ተመልከት",
+        addMoreBtn: "ተጨማሪ ትዕዛዝ ጨምር",
+        kitchenTitle: "ታብሌት 1፦ የኪችን ትዕዛዞች (Kitchen KDS)",
+        kitchenSub: "የምግብ ትዕዛዞች እዚህ በቅጽበት ይደርሳሉ",
+        baristaTitle: "ታብሌት 2፦ የባሬስታ ትዕዛዞች (Barista KDS)",
+        baristaSub: "የሙቅ መጠጦችና የጁስ ትዕዛዞች እዚህ ይደርሳሉ",
+        pendingAddonsHeader: "የተጨማሪ ትዕዛዝ ማረጋገጫ (Pending Add-ons)",
+        cashierTablesHeader: "የጠረጴዛዎች ሁኔታ (Tables Live Overview)",
+        cashierTablesSub: "ክፍያ ለመቀበል ወይም ጠረጴዛ ለማጽዳት ይጫኑ",
+        manualPosHeader: "በካሸር ቀጥታ መሸጫ (Walk-in / Takeaway POS)",
+        manualPosSub: "ከስካን ውጪ ለሚመጡ ደንበኞች እዚሁ ትዕዛዝ መዝግብ",
+        manualTag: "[ከስካን ውጪ / Walk-in]",
+        selectMenuLabel: "ምግብ/መጠጥ ምረጥ፦",
+        qtyLabel: "ብዛት፦",
+        addItemBtn: "ጨምር",
+        manualCurrentBill: "ወቅታዊ የWalk-in ሂሳብ ዝርዝር፦",
+        manualTotal: "ድምር፦",
+        submitManualBtn: "ትዕዛዝ አጽድቅና ክፍያ ተቀበል",
+        eodHeader: "የዕለቱ የሽያጭ ሪፖርት",
+        qrScanRevenue: "ከQR Scan ሽያጭ",
+        walkInRevenue: "ከWalk-in ሽያጭ",
+        totalRevenue: "ጠቅላላ የዛሬ ገቢ (Total Revenue)",
+        bestSellersTitle: "🏆 ተወዳጅ ምግቦችና መጠጦች (Ranked Best-Sellers)",
+        downloadWordBtn: "📄 የዕለቱን ሪፖርት በ Word (.doc) አውርድ",
+        specialPriceLabel: "ልዩ ዋጋ",
+        orderNowBtn: "አሁን እዘዝ",
+        cartModalTitle: "የትዕዛዝዎ ማጠቃለያ",
+        cartTotalLabel: "ጠቅላላ ሂሳብ፦",
+        sendOrderBtn: "ትዕዛዙን አስተላልፍ (Confirm & Send Order)"
+      },
+      en: {
+        bannerText: "Big discounts on catering services for weddings, birthdays & meetings!",
+        langBtnText: "አማርኛ",
+        appSubHeading: "Smart Cafe",
+        tabCustomer: "Customer Menu",
+        tabKitchen: "1. Kitchen KDS",
+        tabBarista: "2. Barista KDS",
+        tabCashier: "3. Cashier POS",
+        urlBarLabel: "Direct Links for Tablets:",
+        selectTableHeader: "Select Your Table Number",
+        selectTableSub: "Auto-selected if accessed via QR Code",
+        tableLabel: "Table:",
+        activeBillBadge: "Active Order",
+        callWaiterBtn: "Call Waiter",
+        addonPendingText: "Your added items are pending cashier confirmation...",
+        totalBillLabel: "Total Bill:",
+        catAll: "All Items",
+        catFood: "🍽️ Food",
+        catHot: "☕ Hot Drinks",
+        catJuice: "🍹 Fresh Juices",
+        catSoft: "🥤 Soft Drinks",
+        catSpecial: "⭐ House Specials",
+        totalOrder: "Selected Items",
+        viewCart: "View Order",
+        addMoreBtn: "Add More Items",
+        kitchenTitle: "Tablet 1: Kitchen Display System (KDS)",
+        kitchenSub: "Food orders arrive here in real time",
+        baristaTitle: "Tablet 2: Barista Display System (KDS)",
+        baristaSub: "Hot drink & juice orders arrive here",
+        pendingAddonsHeader: "Pending Add-ons Approval",
+        cashierTablesHeader: "Live Table Status Overview",
+        cashierTablesSub: "Click to process payment or clear table",
+        manualPosHeader: "Walk-in / Takeaway Cashier POS",
+        manualPosSub: "Register orders for non-QR walk-in customers",
+        manualTag: "[Walk-in Direct]",
+        selectMenuLabel: "Select Menu Item:",
+        qtyLabel: "Qty:",
+        addItemBtn: "Add",
+        manualCurrentBill: "Current Walk-in Bill Details:",
+        manualTotal: "Total:",
+        submitManualBtn: "Approve Order & Confirm Payment",
+        eodHeader: "Daily Sales Report",
+        qrScanRevenue: "QR Scan Revenue",
+        walkInRevenue: "Walk-in Revenue",
+        totalRevenue: "Total Revenue Today",
+        bestSellersTitle: "🏆 Ranked Best-Sellers",
+        downloadWordBtn: "📄 Download Report in Word (.doc)",
+        specialPriceLabel: "Special Price",
+        orderNowBtn: "Order Now",
+        cartModalTitle: "Order Summary",
+        cartTotalLabel: "Total Bill:",
+        sendOrderBtn: "Confirm & Send Order"
+      }
+    };
+
+    /* ========================================================================
+       3. 18 REAL FOOD & DRINK MENU ITEMS
+       ======================================================================== */
+    const menuItems = [
+      { id: 1, category: 'food', nameAm: 'ልዩ የካፌ ቁርስ (Special Breakfast)', nameEn: 'Special Cafe Breakfast', price: 250, img: 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=600&q=80', target: 'kitchen' },
+      { id: 2, category: 'food', nameAm: 'ፍርፍር በስጋ (Special Firfir with Meat)', nameEn: 'Beef Firfir', price: 280, img: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80', target: 'kitchen' },
+      { id: 3, category: 'food', nameAm: 'ቸክቸካ ጥብስ (Chicken/Beef Tibs)', nameEn: 'Special Beef Tibs', price: 380, img: 'https://images.unsplash.com/photo-1603073163308-9654c3fb70b5?auto=format&fit=crop&w=600&q=80', target: 'kitchen' },
+      { id: 4, category: 'food', nameAm: 'ክላሲክ ቡርገር (Classic Beef Burger)', nameEn: 'Classic Beef Burger', price: 320, img: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=80', target: 'kitchen' },
+      { id: 5, category: 'food', nameAm: 'ክለብ ሳንድዊች (Club Sandwich)', nameEn: 'Club Sandwich with Chips', price: 290, img: 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=600&q=80', target: 'kitchen' },
+      { id: 6, category: 'food', nameAm: 'ፒዛ ማርጋሪታ (Margarita Pizza)', nameEn: 'Margarita Pizza', price: 350, img: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&w=600&q=80', target: 'kitchen' },
+      { id: 7, category: 'hot', nameAm: 'የሀበሻ ቡና (Ethiopian Macchiato)', nameEn: 'Ethiopian Macchiato', price: 50, img: 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?auto=format&fit=crop&w=600&q=80', target: 'barista' },
+      { id: 8, category: 'hot', nameAm: 'ካፑቺኖ (Cappuccino)', nameEn: 'Creamy Cappuccino', price: 70, img: 'https://images.unsplash.com/photo-1534778101976-62847782c213?auto=format&fit=crop&w=600&q=80', target: 'barista' },
+      { id: 9, category: 'hot', nameAm: 'ስፔሻል ሻይ በቅመም (Spiced Tea)', nameEn: 'Special Spiced Tea', price: 40, img: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=600&q=80', target: 'barista' },
+      { id: 10, category: 'hot', nameAm: 'ሆት ቸኮሌት (Hot Chocolate)', nameEn: 'Rich Hot Chocolate', price: 90, img: 'https://images.unsplash.com/photo-1542990253-0d0f5be5f0ed?auto=format&fit=crop&w=600&q=80', target: 'barista' },
+      { id: 11, category: 'juice', nameAm: 'ስፔሻል ስፕሪዝ ጁስ (Special Spris)', nameEn: 'Special Spris Juice', price: 120, img: 'https://images.unsplash.com/photo-1553530666-ba11a7da3888?auto=format&fit=crop&w=600&q=80', target: 'barista' },
+      { id: 12, category: 'juice', nameAm: 'የአቮካዶ ጁስ (Fresh Avocado)', nameEn: 'Fresh Avocado Juice', price: 110, img: 'https://images.unsplash.com/photo-1623065422902-30a2d299bbe4?auto=format&fit=crop&w=600&q=80', target: 'barista' },
+      { id: 13, category: 'juice', nameAm: 'የማንጎ ጁስ (Fresh Mango)', nameEn: 'Pure Mango Juice', price: 110, img: 'https://images.unsplash.com/photo-1546173159-315724a31696?auto=format&fit=crop&w=600&q=80', target: 'barista' },
+      { id: 14, category: 'juice', nameAm: 'የብርትኳን ጁስ (Fresh Orange)', nameEn: 'Fresh Squeezed Orange', price: 130, img: 'https://images.unsplash.com/photo-1613478223719-2ab802602423?auto=format&fit=crop&w=600&q=80', target: 'barista' },
+      { id: 15, category: 'soft', nameAm: 'የታሸገ ውሃ (Bottled Water 0.5L)', nameEn: 'Mineral Water 0.5L', price: 30, img: 'https://images.unsplash.com/photo-1560023907-5f313c8de5a1?auto=format&fit=crop&w=600&q=80', target: 'barista' },
+      { id: 16, category: 'soft', nameAm: 'ኮካ ኮላ / ፋንታ (Coca Cola / Fanta)', nameEn: 'Soft Drink (Can)', price: 50, img: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=600&q=80', target: 'barista' },
+      { id: 17, category: 'special', nameAm: 'ልዩ የካፌ ቁርስና አበሻ ቲክስ', nameEn: 'House Special Combo', price: 350, img: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80', target: 'kitchen' },
+      { id: 18, category: 'special', nameAm: 'አይስ ክሬም ዋፍል (Ice Cream Waffle)', nameEn: 'Ice Cream Waffle Special', price: 220, img: 'https://images.unsplash.com/photo-1562376552-0d160a2f238d?auto=format&fit=crop&w=600&q=80', target: 'barista' }
+    ];
+
+    /* ========================================================================
+       4. GLOBAL APPLICATION STATE & INITIALIZATION
+       ======================================================================== */
+    let activeCustomerTable = 1;
+    let customerCart = []; // [{ menuItem, qty }]
+    let activeCategoryFilter = 'all';
+    let manualBillCart = []; // POS manual builder
+
+    // Shared state stored in Firebase or LocalStorage
+    let appState = {
+      nextOrderId: 101,
+      tables: {}, // { tableNum: { orderId, items: [...], total, pendingCashierConfirm, timestamp } }
+      completedSales: [], // [{ orderId, tableNum, source, items, total, timestamp }]
+      alerts: [], // [{ id, type, tableNum, text, time }]
+      kitchenUnread: 0,
+      baristaUnread: 0,
+      acknowledgedOrders: {} // { orderId_role: true }
+    };
+
+    // Initialize 10 tables in state if empty
+    for (let i = 1; i <= 10; i++) {
+      if (!appState.tables[i]) {
+        appState.tables[i] = null;
+      }
+    }
+
+    // Audio Chime using Web Audio API
+    function playChimeSound(type = 'order') {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        if (type === 'order') {
+          osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+          osc.frequency.setValueAtTime(880, ctx.currentTime + 0.15); // A5
+        } else if (type === 'alert') {
+          osc.frequency.setValueAtTime(880, ctx.currentTime);
+          osc.frequency.setValueAtTime(440, ctx.currentTime + 0.2);
+        }
+
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.4);
+      } catch (e) {
+        // Audio playback muted or unsupported
+      }
+    }
+
+    // Read URL Parameters for Role Isolation (?role=... & table=...)
+    const urlParams = new URLSearchParams(window.location.search);
+    const roleParam = urlParams.get('role'); // customer, kitchen, barista, cashier
+    const tableParam = parseInt(urlParams.get('table')) || 1;
+
+    window.onload = function() {
+      loadStateFromLocal();
+      initFirebase();
+      
+      // Handle Role Lockdown based on URL parameters
+      if (roleParam) {
+        document.getElementById('roleTabs').classList.add('hidden');
+        document.getElementById('urlBar').classList.add('hidden');
+
+        if (roleParam === 'customer') {
+          activeCustomerTable = Math.min(Math.max(tableParam, 1), 10);
+          switchView('customer', true);
+          // Lock table selector card if tableParam explicitly provided
+          if (urlParams.has('table')) {
+            document.getElementById('tableSelectorCard').classList.add('hidden');
+          }
+        } else if (roleParam === 'kitchen') {
+          switchView('kitchen', true);
+        } else if (roleParam === 'barista') {
+          switchView('barista', true);
+        } else if (roleParam === 'cashier') {
+          switchView('cashier', true);
+        }
+      } else {
+        // Default Admin View: Customer tab selected by default
+        switchView('customer');
+      }
+
+      // Populate Table Dropdowns
+      populateTableDropdowns();
+      populateManualPosDropdown();
+
+      // Show House Special Popup Modal after short delay on customer view
+      setTimeout(() => {
+        if (!roleParam || roleParam === 'customer') {
+          document.getElementById('specialWelcomeModal').classList.remove('hidden');
+        }
+      }, 1200);
+
+      renderCurrentView();
+    };
+
+    function saveAppState() {
+      saveStateToLocal();
+      if (isFirebaseConnected && dbRef) {
+        dbRef.set(appState);
+      }
+    }
+
+    function saveStateToLocal() {
+      localStorage.setItem('smartCafeState', JSON.stringify(appState));
+    }
+
+    function loadStateFromLocal() {
+      const saved = localStorage.getItem('smartCafeState');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.tables) {
+            appState = parsed;
+          }
+        } catch(e){}
+      }
+    }
+
+    /* ========================================================================
+       5. VIEW SWITCHER & I18N RENDERER
+       ======================================================================== */
+    let currentViewName = 'customer';
+
+    function switchView(viewName, isRoleLocked = false) {
+      currentViewName = viewName;
+      
+      ['customer', 'kitchen', 'barista', 'cashier'].forEach(v => {
+        const sec = document.getElementById(`view-${v}`);
+        const tab = document.getElementById(`tab-${v}`);
+        if (sec) sec.classList.add('hidden');
+        if (tab) {
+          tab.className = "role-tab px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 text-teal-200 hover:text-white hover:bg-teal-800";
+        }
+      });
+
+      const activeSec = document.getElementById(`view-${viewName}`);
+      const activeTab = document.getElementById(`tab-${viewName}`);
+      if (activeSec) activeSec.classList.remove('hidden');
+      if (activeTab) {
+        activeTab.className = "role-tab px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 bg-teal-700 text-white shadow";
+      }
+
+      // Reset unread counts when viewing role tab
+      if (viewName === 'kitchen') {
+        appState.kitchenUnread = 0;
+        saveAppState();
+      } else if (viewName === 'barista') {
+        appState.baristaUnread = 0;
+        saveAppState();
+      }
+
+      renderCurrentView();
+    }
+
+    function renderCurrentView() {
+      updateI18nText();
+      renderCustomerMenu();
+      renderCustomerActiveBill();
+      renderKitchenView();
+      renderBaristaView();
+      renderCashierView();
+      updateUnreadBadges();
+    }
+
+    function toggleLanguage() {
+      currentLang = currentLang === 'am' ? 'en' : 'am';
+      renderCurrentView();
+    }
+
+    function updateI18nText() {
+      const langData = translations[currentLang];
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (langData[key]) {
+          el.innerText = langData[key];
+        }
+      });
+      document.getElementById('langBtnText').innerText = langData.langBtnText;
+      document.getElementById('bannerText').innerText = langData.bannerText;
+      document.getElementById('todayDateLabel').innerText = new Date().toLocaleDateString(currentLang === 'am' ? 'am-ET' : 'en-US');
+    }
+
+    function populateTableDropdowns() {
+      const sel = document.getElementById('activeTableSelect');
+      sel.innerHTML = '';
+      for (let i = 1; i <= 10; i++) {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.innerText = currentLang === 'am' ? `ጠረጴዛ #${i}` : `Table #${i}`;
+        if (i === activeCustomerTable) opt.selected = true;
+        sel.appendChild(opt);
+      }
+    }
+
+    function changeActiveCustomerTable(val) {
+      activeCustomerTable = parseInt(val);
+      customerCart = [];
+      renderCustomerMenu();
+      renderCustomerActiveBill();
+      updateCartFloatingBar();
+    }
+
+    function copyRoleUrl(role, tableNum) {
+      const origin = window.location.origin + window.location.pathname;
+      let url = `${origin}?role=${role}`;
+      if (tableNum) url += `&table=${tableNum}`;
+      
+      const tempInput = document.createElement('input');
+      tempInput.value = url;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+
+      showCustomNotice('📋 Link Copied!', `${url} copied to clipboard.`);
+    }
+
+    /* ========================================================================
+       6. CUSTOMER ORDERING LOGIC
+       ======================================================================== */
+    function filterCategory(cat) {
+      activeCategoryFilter = cat;
+      document.querySelectorAll('.cat-btn').forEach(btn => {
+        if (btn.getAttribute('data-cat') === cat) {
+          btn.className = "cat-btn bg-teal-800 text-white px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap shadow transition";
+        } else {
+          btn.className = "cat-btn bg-white hover:bg-teal-50 text-teal-900 border border-teal-200 px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition";
+        }
+      });
+      renderCustomerMenu();
+    }
+
+    function renderCustomerMenu() {
+      const grid = document.getElementById('menuGrid');
+      grid.innerHTML = '';
+
+      const filtered = menuItems.filter(item => activeCategoryFilter === 'all' || item.category === activeCategoryFilter);
+
+      filtered.forEach(item => {
+        const cartItem = customerCart.find(c => c.menuItem.id === item.id);
+        const qty = cartItem ? cartItem.qty : 0;
+        const name = currentLang === 'am' ? item.nameAm : item.nameEn;
+
+        const card = document.createElement('div');
+        card.className = "bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md border border-teal-100/80 flex flex-col justify-between transition group";
+        card.innerHTML = `
+          <div>
+            <div class="relative h-36 bg-slate-100 overflow-hidden">
+              <img src="${item.img}" alt="${name}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+              <span class="absolute top-2 right-2 bg-teal-950/80 backdrop-blur-sm text-teal-300 font-extrabold text-[11px] px-2.5 py-1 rounded-lg">
+                ${item.price} ETB
+              </span>
+            </div>
+            <div class="p-3.5">
+              <h4 class="font-bold text-teal-950 text-sm leading-snug line-clamp-1">${name}</h4>
+              <p class="text-[11px] text-slate-500 mt-0.5 capitalize">
+                ${item.target === 'kitchen' ? '👨‍🍳 Kitchen Item' : '☕ Barista Drink'}
+              </p>
+            </div>
+          </div>
+          <div class="p-3.5 pt-0">
+            ${qty === 0 ? `
+              <button onclick="addToCart(${item.id})" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-plus"></i> ${currentLang === 'am' ? 'እዘዝ' : 'Add Order'}
+              </button>
+            ` : `
+              <div class="flex items-center justify-between bg-teal-50 border border-teal-300 rounded-xl p-1">
+                <button onclick="updateCartQty(${item.id}, -1)" class="w-8 h-8 bg-teal-700 text-white rounded-lg font-bold flex items-center justify-center text-sm shadow hover:bg-teal-800">
+                  -
+                </button>
+                <span class="font-extrabold text-teal-950 text-sm">${qty}</span>
+                <button onclick="updateCartQty(${item.id}, 1)" class="w-8 h-8 bg-teal-700 text-white rounded-lg font-bold flex items-center justify-center text-sm shadow hover:bg-teal-800">
+                  +
+                </button>
+              </div>
+            `}
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function addToCart(itemId) {
+      const item = menuItems.find(m => m.id === itemId);
+      if (!item) return;
+      customerCart.push({ menuItem: item, qty: 1 });
+      renderCustomerMenu();
+      updateCartFloatingBar();
+    }
+
+    function updateCartQty(itemId, delta) {
+      const idx = customerCart.findIndex(c => c.menuItem.id === itemId);
+      if (idx !== -1) {
+        customerCart[idx].qty += delta;
+        if (customerCart[idx].qty <= 0) {
+          customerCart.splice(idx, 1);
+        }
+      }
+      renderCustomerMenu();
+      updateCartFloatingBar();
+    }
+
+    function updateCartFloatingBar() {
+      const bar = document.getElementById('floatingCartBar');
+      const badge = document.getElementById('cartBadge');
+      const sumEl = document.getElementById('cartTotalSum');
+      const btnText = document.getElementById('cartActionBtnText');
+      
+      const totalCount = customerCart.reduce((sum, c) => sum + c.qty, 0);
+      const totalSum = customerCart.reduce((sum, c) => sum + (c.qty * c.menuItem.price), 0);
+
+      badge.innerText = totalCount;
+      sumEl.innerText = `${totalSum.toFixed(2)} ETB`;
+
+      const activeOrder = appState.tables[activeCustomerTable];
+      if (activeOrder) {
+        btnText.innerText = currentLang === 'am' ? 'ተጨማሪ ትዕዛዝ ጨምር' : 'Add More Items';
+      } else {
+        btnText.innerText = currentLang === 'am' ? 'ትዕዛዝ ተመልከት' : 'View Order';
+      }
+
+      if (totalCount > 0) {
+        bar.classList.remove('translate-y-32');
+      } else {
+        bar.classList.add('translate-y-32');
+      }
+    }
+
+    function openCartModal() {
+      const modal = document.getElementById('cartModal');
+      const container = document.getElementById('cartModalItems');
+      const label = document.getElementById('cartModalTableLabel');
+      const sumEl = document.getElementById('cartModalTotalSum');
+
+      label.innerText = currentLang === 'am' ? `ጠረጴዛ #${activeCustomerTable}` : `Table #${activeCustomerTable}`;
+      container.innerHTML = '';
+
+      let totalSum = 0;
+      customerCart.forEach(c => {
+        const itemTotal = c.qty * c.menuItem.price;
+        totalSum += itemTotal;
+        const name = currentLang === 'am' ? c.menuItem.nameAm : c.menuItem.nameEn;
+
+        const row = document.createElement('div');
+        row.className = "flex justify-between items-center bg-teal-50/70 border border-teal-100 p-3 rounded-2xl";
+        row.innerHTML = `
+          <div>
+            <div class="font-bold text-slate-800 text-xs">${name}</div>
+            <div class="text-[11px] text-teal-700 font-semibold">${c.menuItem.price} ETB x ${c.qty}</div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="font-black text-teal-950 text-xs">${itemTotal.toFixed(2)} ETB</span>
+            <div class="flex items-center gap-1">
+              <button onclick="updateCartQty(${c.menuItem.id}, -1); openCartModal();" class="w-6 h-6 bg-slate-200 text-slate-800 font-bold rounded flex items-center justify-center text-xs">-</button>
+              <button onclick="updateCartQty(${c.menuItem.id}, 1); openCartModal();" class="w-6 h-6 bg-slate-200 text-slate-800 font-bold rounded flex items-center justify-center text-xs">+</button>
+            </div>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+
+      sumEl.innerText = `${totalSum.toFixed(2)} ETB`;
+      modal.classList.remove('hidden');
+    }
+
+    function closeCartModal() {
+      document.getElementById('cartModal').classList.add('hidden');
+    }
+
+    function confirmCustomerOrderSubmit() {
+      if (customerCart.length === 0) return;
+
+      const existingTableOrder = appState.tables[activeCustomerTable];
+
+      if (!existingTableOrder) {
+        // Create initial table order
+        const newOrder = {
+          orderId: appState.nextOrderId++,
+          tableNum: activeCustomerTable,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          items: customerCart.map(c => ({
+            id: c.menuItem.id,
+            nameAm: c.menuItem.nameAm,
+            nameEn: c.menuItem.nameEn,
+            price: c.menuItem.price,
+            qty: c.qty,
+            target: c.menuItem.target,
+            status: 'pending' // pending, ready
+          })),
+          total: customerCart.reduce((sum, c) => sum + (c.qty * c.menuItem.price), 0),
+          pendingCashierConfirm: false,
+          isPaid: false
+        };
+
+        appState.tables[activeCustomerTable] = newOrder;
+        appState.kitchenUnread++;
+        appState.baristaUnread++;
+
+      } else {
+        // Append add-on order requiring Cashier confirmation
+        const addOnItems = customerCart.map(c => ({
+          id: c.menuItem.id,
+          nameAm: c.menuItem.nameAm,
+          nameEn: c.menuItem.nameEn,
+          price: c.menuItem.price,
+          qty: c.qty,
+          target: c.menuItem.target,
+          status: 'pending_addon' // Requires Cashier Approval
+        }));
+
+        existingTableOrder.items.push(...addOnItems);
+        existingTableOrder.pendingCashierConfirm = true;
+      }
+
+      customerCart = [];
+      closeCartModal();
+      saveAppState();
+      playChimeSound('order');
+
+      showCustomNotice(
+        currentLang === 'am' ? '🎉 ትዕዛዝዎ ተልኳል!' : '🎉 Order Sent!',
+        currentLang === 'am' ? 'ትዕዛዝዎ በተሳካ ሁኔታ ተመዝግቧል። ኪችንና ባሬስታ ማዘጋጀት ጀምረዋል!' : 'Your order has been sent to the Kitchen & Barista.'
+      );
+    }
+
+    function renderCustomerActiveBill() {
+      const card = document.getElementById('customerActiveBillCard');
+      const itemsContainer = document.getElementById('activeBillItems');
+      const title = document.getElementById('activeBillTitle');
+      const totalEl = document.getElementById('activeBillTotal');
+      const addonBanner = document.getElementById('addonPendingBanner');
+
+      const activeOrder = appState.tables[activeCustomerTable];
+
+      if (!activeOrder) {
+        card.classList.add('hidden');
+        return;
+      }
+
+      card.classList.remove('hidden');
+      title.innerText = currentLang === 'am' 
+        ? `ጠረጴዛ #${activeCustomerTable} - ትዕዛዝ #${activeOrder.orderId}`
+        : `Table #${activeCustomerTable} - Order #${activeOrder.orderId}`;
+
+      itemsContainer.innerHTML = '';
+
+      let totalSum = 0;
+      activeOrder.items.forEach(item => {
+        const itemPriceTotal = item.qty * item.price;
+        totalSum += itemPriceTotal;
+        const name = currentLang === 'am' ? item.nameAm : item.nameEn;
+
+        let statusTag = '';
+        if (item.status === 'pending_addon') {
+          statusTag = `<span class="bg-amber-200 text-amber-900 text-[10px] px-2 py-0.5 rounded font-bold">⏳ ማረጋገጫ በመጠባበቅ ላይ</span>`;
+        } else if (item.status === 'ready') {
+          statusTag = `<span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded font-bold">✅ ተዘጋጅቷል</span>`;
+        } else {
+          statusTag = `<span class="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded font-bold">🍳 እየተዘጋጀ ነው</span>`;
+        }
+
+        const itemRow = document.createElement('div');
+        itemRow.className = "flex justify-between items-center bg-white p-2.5 rounded-xl border border-amber-200 text-xs";
+        itemRow.innerHTML = `
+          <div>
+            <div class="font-bold text-amber-950 flex items-center gap-2">
+              ${name} ${statusTag}
+            </div>
+            <div class="text-[11px] text-amber-800">${item.price} ETB x ${item.qty}</div>
+          </div>
+          <div class="font-extrabold text-amber-950">${itemPriceTotal.toFixed(2)} ETB</div>
+        `;
+        itemsContainer.appendChild(itemRow);
+      });
+
+      totalEl.innerText = `${totalSum.toFixed(2)} ETB`;
+
+      if (activeOrder.pendingCashierConfirm) {
+        addonBanner.classList.remove('hidden');
+      } else {
+        addonBanner.classList.add('hidden');
+      }
+
+      updateCartFloatingBar();
+    }
+
+    function callWaiterPrompt() {
+      const options = currentLang === 'am' 
+        ? ['እባክዎን አስተናጋጅ ይላኩልኝ', 'የሂሳብ ማጠቃለያ (Cash Bill) ይምጣልኝ', 'ውሃ እና ናፕኪን (Water & Napkins)']
+        : ['Assistance needed', 'Bring Cash Bill', 'Water & Napkins requested'];
+
+      const msg = prompt(
+        currentLang === 'am' ? 'ለአስተናጋጅ ምን እንዲመጣልዎት ይፈልጋሉ?\n1. አስተናጋጅ ይላኩልኝ\n2. ሂሳብ አምጡልኝ\n3. ውሃ/ናፕኪን' : 'Choose option:\n1. Call Waiter\n2. Cash Bill\n3. Water/Napkins',
+        '1'
+      );
+
+      let text = options[0];
+      if (msg === '2') text = options[1];
+      if (msg === '3') text = options[2];
+
+      appState.alerts.push({
+        id: Date.now(),
+        type: 'waiter',
+        tableNum: activeCustomerTable,
+        text: text,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      });
+
+      saveAppState();
+      playChimeSound('alert');
+      showCustomNotice(
+        currentLang === 'am' ? '🔔 አስተናጋጅ ተጠርቷል' : '🔔 Waiter Call Sent',
+        currentLang === 'am' ? 'ጥሪዎ ለካሸርና አስተናጋጆች ተልኳል። አሁኑኑ ይደርሳሉ!' : 'Your call has been received at the cashier station.'
+      );
+    }
+
+    /* ========================================================================
+       7. KITCHEN DISPLAY SYSTEM (KDS) - TABLET 1 LOGIC
+       ======================================================================== */
+    function renderKitchenView() {
+      const grid = document.getElementById('kitchenOrdersGrid');
+      const badge = document.getElementById('kitchenCountBadge');
+      grid.innerHTML = '';
+
+      let activeCount = 0;
+
+      Object.keys(appState.tables).forEach(tableNum => {
+        const order = appState.tables[tableNum];
+        if (!order) return;
+
+        // Filter items belonging to Kitchen
+        const kitchenItems = order.items.filter(i => i.target === 'kitchen' && i.status !== 'pending_addon');
+        if (kitchenItems.length === 0) return;
+
+        activeCount++;
+        const ackKey = `kitchen_${order.orderId}`;
+        const isUnacknowledged = !appState.acknowledgedOrders[ackKey];
+
+        const card = document.createElement('div');
+        card.className = `bg-white rounded-2xl p-4 shadow-sm border-2 ${isUnacknowledged ? 'flash-alert border-rose-500' : 'border-teal-100'} space-y-3 flex flex-col justify-between`;
+
+        let itemsHtml = kitchenItems.map((item, idx) => `
+          <div class="flex justify-between items-center bg-slate-50 p-2 rounded-xl text-xs">
+            <div>
+              <span class="font-extrabold text-teal-950">${item.qty}x</span> 
+              <span class="font-bold text-slate-800">${currentLang === 'am' ? item.nameAm : item.nameEn}</span>
+            </div>
+            ${item.status === 'ready' ? `
+              <span class="bg-emerald-100 text-emerald-800 font-bold text-[10px] px-2 py-1 rounded-lg">✅ ደርሷል</span>
+            ` : `
+              <button onclick="markItemReady(${tableNum}, ${item.id})" class="bg-teal-700 hover:bg-teal-800 text-white font-bold text-[10px] px-2.5 py-1 rounded-lg shadow transition">
+                🍳 ደርሷል (Mark Ready)
+              </button>
+            `}
+          </div>
+        `).join('');
+
+        card.innerHTML = `
+          <div>
+            <div class="flex justify-between items-center border-b pb-2">
+              <div class="flex items-center gap-2">
+                <span class="bg-teal-900 text-amber-400 text-xs px-2.5 py-0.5 rounded-full font-black">
+                  ጠረጴዛ #${tableNum}
+                </span>
+                <span class="text-xs font-bold text-slate-700">ትዕዛዝ #${order.orderId}</span>
+              </div>
+              <span class="text-[11px] text-slate-500"><i class="fa-regular fa-clock"></i> ${order.timestamp}</span>
+            </div>
+            <div class="mt-3 space-y-2">
+              ${itemsHtml}
+            </div>
+          </div>
+          ${isUnacknowledged ? `
+            <button onclick="acknowledgeOrder('kitchen', ${order.orderId})" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs py-2 rounded-xl shadow transition mt-2 animate-pulse">
+              👁️ አይቻለሁ (Acknowledge)
+            </button>
+          ` : ''}
+        `;
+        grid.appendChild(card);
+      });
+
+      badge.innerText = currentLang === 'am' ? `${activeCount} ንቁ ትዕዛዞች` : `${activeCount} Active Orders`;
+    }
+
+    /* ========================================================================
+       8. BARISTA DISPLAY SYSTEM (KDS) - TABLET 2 LOGIC
+       ======================================================================== */
+    function renderBaristaView() {
+      const grid = document.getElementById('baristaOrdersGrid');
+      const badge = document.getElementById('baristaCountBadge');
+      grid.innerHTML = '';
+
+      let activeCount = 0;
+
+      Object.keys(appState.tables).forEach(tableNum => {
+        const order = appState.tables[tableNum];
+        if (!order) return;
+
+        // Filter items belonging to Barista
+        const baristaItems = order.items.filter(i => i.target === 'barista' && i.status !== 'pending_addon');
+        if (baristaItems.length === 0) return;
+
+        activeCount++;
+        const ackKey = `barista_${order.orderId}`;
+        const isUnacknowledged = !appState.acknowledgedOrders[ackKey];
+
+        const card = document.createElement('div');
+        card.className = `bg-white rounded-2xl p-4 shadow-sm border-2 ${isUnacknowledged ? 'flash-alert border-rose-500' : 'border-teal-100'} space-y-3 flex flex-col justify-between`;
+
+        let itemsHtml = baristaItems.map((item) => `
+          <div class="flex justify-between items-center bg-amber-50/60 p-2 rounded-xl text-xs border border-amber-100">
+            <div>
+              <span class="font-extrabold text-amber-950">${item.qty}x</span> 
+              <span class="font-bold text-slate-800">${currentLang === 'am' ? item.nameAm : item.nameEn}</span>
+            </div>
+            ${item.status === 'ready' ? `
+              <span class="bg-emerald-100 text-emerald-800 font-bold text-[10px] px-2 py-1 rounded-lg">✅ ደርሷል</span>
+            ` : `
+              <button onclick="markItemReady(${tableNum}, ${item.id})" class="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] px-2.5 py-1 rounded-lg shadow transition">
+                ☕ ደርሷል (Mark Ready)
+              </button>
+            `}
+          </div>
+        `).join('');
+
+        card.innerHTML = `
+          <div>
+            <div class="flex justify-between items-center border-b pb-2">
+              <div class="flex items-center gap-2">
+                <span class="bg-amber-600 text-white text-xs px-2.5 py-0.5 rounded-full font-black">
+                  ጠረጴዛ #${tableNum}
+                </span>
+                <span class="text-xs font-bold text-slate-700">ትዕዛዝ #${order.orderId}</span>
+              </div>
+              <span class="text-[11px] text-slate-500"><i class="fa-regular fa-clock"></i> ${order.timestamp}</span>
+            </div>
+            <div class="mt-3 space-y-2">
+              ${itemsHtml}
+            </div>
+          </div>
+          ${isUnacknowledged ? `
+            <button onclick="acknowledgeOrder('barista', ${order.orderId})" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs py-2 rounded-xl shadow transition mt-2 animate-pulse">
+              👁️ አይቻለሁ (Acknowledge)
+            </button>
+          ` : ''}
+        `;
+        grid.appendChild(card);
+      });
+
+      badge.innerText = currentLang === 'am' ? `${activeCount} ንቁ ትዕዛዞች` : `${activeCount} Active Orders`;
+    }
+
+    function markItemReady(tableNum, itemId) {
+      const order = appState.tables[tableNum];
+      if (!order) return;
+
+      const item = order.items.find(i => i.id === itemId);
+      if (item) {
+        item.status = 'ready';
+        
+        // Notify cashier with alert
+        const name = currentLang === 'am' ? item.nameAm : item.nameEn;
+        appState.alerts.push({
+          id: Date.now(),
+          type: 'ready',
+          tableNum: tableNum,
+          text: `${name} ተዘጋጅቶ ደርሷል!`,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+
+        saveAppState();
+        playChimeSound('alert');
+      }
+    }
+
+    function acknowledgeOrder(role, orderId) {
+      appState.acknowledgedOrders[`${role}_${orderId}`] = true;
+      if (role === 'kitchen') appState.kitchenUnread = Math.max(0, appState.kitchenUnread - 1);
+      if (role === 'barista') appState.baristaUnread = Math.max(0, appState.baristaUnread - 1);
+      saveAppState();
+    }
+
+    /* ========================================================================
+       9. CASHIER POS - TABLET 3 LOGIC & END-OF-DAY REPORT
+       ======================================================================== */
+    function renderCashierView() {
+      renderCashierAlerts();
+      renderPendingAddons();
+      renderCashierTablesGrid();
+      renderEodReport();
+    }
+
+    function renderCashierAlerts() {
+      const container = document.getElementById('cashierAlertsContainer');
+      container.innerHTML = '';
+
+      appState.alerts.forEach(alert => {
+        const div = document.createElement('div');
+        div.className = "bg-rose-50 border-2 border-rose-400 p-3 rounded-2xl flex justify-between items-center shadow-md animate-bounce";
+        div.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="text-xl">🔔</span>
+            <div>
+              <span class="font-extrabold text-rose-950 text-xs">ጠረጴዛ #${alert.tableNum}፦</span>
+              <span class="font-bold text-rose-900 text-xs">${alert.text}</span>
+              <span class="text-[10px] text-rose-700 ml-2">(${alert.time})</span>
+            </div>
+          </div>
+          <button onclick="dismissCashierAlert(${alert.id})" class="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition">
+            አይቻለሁ (Acknowledge)
+          </button>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function dismissCashierAlert(alertId) {
+      appState.alerts = appState.alerts.filter(a => a.id !== alertId);
+      saveAppState();
+    }
+
+    function renderPendingAddons() {
+      const card = document.getElementById('cashierPendingAddonsCard');
+      const list = document.getElementById('pendingAddonsList');
+      list.innerHTML = '';
+
+      let hasPending = false;
+
+      Object.keys(appState.tables).forEach(tableNum => {
+        const order = appState.tables[tableNum];
+        if (!order || !order.pendingCashierConfirm) return;
+
+        hasPending = true;
+        const pendingItems = order.items.filter(i => i.status === 'pending_addon');
+
+        const div = document.createElement('div');
+        div.className = "bg-white p-3 rounded-xl border border-amber-300 flex justify-between items-center text-xs";
+        
+        let names = pendingItems.map(i => `${i.qty}x ${currentLang === 'am' ? i.nameAm : i.nameEn}`).join(', ');
+
+        div.innerHTML = `
+          <div>
+            <span class="font-bold text-amber-950">ጠረጴዛ #${tableNum} (ተጨማሪ)፦</span>
+            <span class="text-slate-700 font-medium">${names}</span>
+          </div>
+          <button onclick="confirmAddonOrder(${tableNum})" class="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow transition">
+            አጽድቅ (Confirm Add-on)
+          </button>
+        `;
+        list.appendChild(div);
+      });
+
+      if (hasPending) {
+        card.classList.remove('hidden');
+      } else {
+        card.classList.add('hidden');
+      }
+    }
+
+    function confirmAddonOrder(tableNum) {
+      const order = appState.tables[tableNum];
+      if (!order) return;
+
+      order.items.forEach(i => {
+        if (i.status === 'pending_addon') {
+          i.status = 'pending';
+        }
+      });
+      order.pendingCashierConfirm = false;
+
+      appState.kitchenUnread++;
+      appState.baristaUnread++;
+      saveAppState();
+
+      showCustomNotice('✅ ተጨማሪ ትዕዛዝ ፀደቀ', `የጠረጴዛ #${tableNum} ተጨማሪ ትዕዛዝ ወደ ኪችንና ባሬስታ ተልኳል።`);
+    }
+
+    function renderCashierTablesGrid() {
+      const grid = document.getElementById('cashierTablesGrid');
+      grid.innerHTML = '';
+
+      for (let i = 1; i <= 10; i++) {
+        const order = appState.tables[i];
+        const card = document.createElement('div');
+
+        if (!order) {
+          card.className = "bg-slate-50 border border-slate-200 rounded-2xl p-3 text-center space-y-2 opacity-75";
+          card.innerHTML = `
+            <div class="text-xs font-bold text-slate-400">ጠረጴዛ #${i}</div>
+            <div class="text-[11px] text-slate-400 font-medium">ባዶ (Available)</div>
+          `;
+        } else {
+          card.className = "bg-teal-50 border-2 border-teal-500 rounded-2xl p-3 text-center space-y-2 shadow-sm";
+          card.innerHTML = `
+            <div class="flex justify-between items-center">
+              <span class="bg-teal-700 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">#${i}</span>
+              <span class="text-[10px] text-teal-800 font-bold">#${order.orderId}</span>
+            </div>
+            <div class="text-xs font-black text-teal-950">${order.total.toFixed(2)} ETB</div>
+            <button onclick="confirmCashierPayment(${i})" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] py-1.5 rounded-xl shadow transition">
+              💳 ተከፍሏል (Paid)
+            </button>
+          `;
+        }
+        grid.appendChild(card);
+      }
+    }
+
+    function confirmCashierPayment(tableNum) {
+      const order = appState.tables[tableNum];
+      if (!order) return;
+
+      // Log to completed sales ledger
+      appState.completedSales.push({
+        orderId: order.orderId,
+        tableNum: tableNum,
+        source: 'QR Scan',
+        items: [...order.items],
+        total: order.total,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      });
+
+      // Clear Table Lock
+      appState.tables[tableNum] = null;
+      saveAppState();
+
+      showCustomNotice('🎉 ክፍያ ተቀብሏል', `የጠረጴዛ #${tableNum} ሂሳብ ተከፍሎ ጠረጴዛው ነጻ ሆኗል!`);
+    }
+
+    /* ========================================================================
+       10. WALK-IN MANUAL POS BUILDER LOGIC
+       ======================================================================== */
+    function populateManualPosDropdown() {
+      const sel = document.getElementById('manualItemSelect');
+      sel.innerHTML = '';
+      menuItems.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = item.id;
+        opt.innerText = `${item.nameAm} - ${item.price} ETB`;
+        sel.appendChild(opt);
+      });
+    }
+
+    function addManualItemToBill() {
+      const itemId = parseInt(document.getElementById('manualItemSelect').value);
+      const qty = parseInt(document.getElementById('manualItemQty').value) || 1;
+      const item = menuItems.find(m => m.id === itemId);
+
+      if (!item) return;
+
+      const existing = manualBillCart.find(m => m.menuItem.id === itemId);
+      if (existing) {
+        existing.qty += qty;
+      } else {
+        manualBillCart.push({ menuItem: item, qty: qty });
+      }
+
+      renderManualBillContainer();
+    }
+
+    function renderManualBillContainer() {
+      const container = document.getElementById('manualOrderBillContainer');
+      const list = document.getElementById('manualBillItems');
+      const totalEl = document.getElementById('manualBillTotalText');
+
+      list.innerHTML = '';
+      if (manualBillCart.length === 0) {
+        container.classList.add('hidden');
+        return;
+      }
+
+      container.classList.remove('hidden');
+
+      let sum = 0;
+      manualBillCart.forEach((c, idx) => {
+        const itemTotal = c.qty * c.menuItem.price;
+        sum += itemTotal;
+
+        const row = document.createElement('div');
+        row.className = "flex justify-between items-center bg-white p-2 rounded-lg border border-teal-100";
+        row.innerHTML = `
+          <span>${c.qty}x ${c.menuItem.nameAm}</span>
+          <div class="flex items-center gap-2">
+            <span class="font-bold">${itemTotal.toFixed(2)} ETB</span>
+            <button onclick="removeManualItem(${idx})" class="text-rose-600 font-bold hover:text-rose-800">✕</button>
+          </div>
+        `;
+        list.appendChild(row);
+      });
+
+      totalEl.innerText = `${sum.toFixed(2)} ETB`;
+    }
+
+    function removeManualItem(idx) {
+      manualBillCart.splice(idx, 1);
+      renderManualBillContainer();
+    }
+
+    function submitManualOrder() {
+      if (manualBillCart.length === 0) return;
+
+      const totalSum = manualBillCart.reduce((s, c) => s + (c.qty * c.menuItem.price), 0);
+      const newOrderId = appState.nextOrderId++;
+
+      // Log immediately to completed sales as Walk-in
+      appState.completedSales.push({
+        orderId: newOrderId,
+        tableNum: 'Walk-in',
+        source: 'Walk-in Manual',
+        items: manualBillCart.map(c => ({
+          id: c.menuItem.id,
+          nameAm: c.menuItem.nameAm,
+          nameEn: c.menuItem.nameEn,
+          price: c.menuItem.price,
+          qty: c.qty,
+          target: c.menuItem.target,
+          status: 'ready'
+        })),
+        total: totalSum,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      });
+
+      manualBillCart = [];
+      renderManualBillContainer();
+      saveAppState();
+
+      showCustomNotice('✅ ትዕዛዝ ተመዝግቧል', `የWalk-in ትዕዛዝ #${newOrderId} ተመዝግቦ ክፍያው ተቀብሏል!`);
+    }
+
+    /* ========================================================================
+       11. END-OF-DAY REPORT & WORD (.DOC) DOWNLOAD
+       ======================================================================== */
+    function renderEodReport() {
+      let qrRevenue = 0;
+      let walkInRevenue = 0;
+      const bestSellersMap = {};
+
+      appState.completedSales.forEach(sale => {
+        if (sale.source === 'QR Scan') {
+          qrRevenue += sale.total;
+        } else {
+          walkInRevenue += sale.total;
+        }
+
+        sale.items.forEach(i => {
+          const key = i.nameAm;
+          if (!bestSellersMap[key]) {
+            bestSellersMap[key] = { nameAm: i.nameAm, nameEn: i.nameEn, qty: 0, revenue: 0 };
+          }
+          bestSellersMap[key].qty += i.qty;
+          bestSellersMap[key].revenue += (i.qty * i.price);
+        });
+      });
+
+      const totalRevenue = qrRevenue + walkInRevenue;
+
+      document.getElementById('eodQrRevenue').innerText = `${qrRevenue.toFixed(2)} ETB`;
+      document.getElementById('eodWalkInRevenue').innerText = `${walkInRevenue.toFixed(2)} ETB`;
+      document.getElementById('eodTotalRevenue').innerText = `${totalRevenue.toFixed(2)} ETB`;
+      document.getElementById('eodTotalOrdersCount').innerText = `${appState.completedSales.length} የተጠናቀቁ ትዕዛዞች`;
+
+      // Sort Best Sellers Ranked
+      const sortedBestSellers = Object.values(bestSellersMap).sort((a, b) => b.qty - a.qty);
+      const bsContainer = document.getElementById('eodBestSellers');
+      bsContainer.innerHTML = '';
+
+      if (sortedBestSellers.length === 0) {
+        bsContainer.innerHTML = `<div class="text-slate-400 text-[11px]">እስካሁን የተጠናቀቀ ሽያጭ የለም።</div>`;
+        return;
+      }
+
+      sortedBestSellers.forEach((item, idx) => {
+        const row = document.createElement('div');
+        row.className = "flex justify-between items-center bg-slate-50 p-2 rounded-xl border border-slate-100";
+        row.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="w-5 h-5 bg-teal-700 text-white rounded-full flex items-center justify-center font-bold text-[10px]">${idx + 1}</span>
+            <span class="font-bold text-slate-800">${item.nameAm}</span>
+          </div>
+          <div class="text-right">
+            <span class="font-extrabold text-teal-950">${item.qty} ተሸጠ</span>
+            <span class="text-[10px] text-slate-500 block">(${item.revenue.toFixed(2)} ETB)</span>
+          </div>
+        `;
+        bsContainer.appendChild(row);
+      });
+    }
+
+    function downloadWordReport() {
+      let qrRevenue = 0;
+      let walkInRevenue = 0;
+      const bestSellersMap = {};
+
+      appState.completedSales.forEach(sale => {
+        if (sale.source === 'QR Scan') qrRevenue += sale.total;
+        else walkInRevenue += sale.total;
+
+        sale.items.forEach(i => {
+          const key = i.nameAm;
+          if (!bestSellersMap[key]) {
+            bestSellersMap[key] = { nameAm: i.nameAm, qty: 0, revenue: 0 };
+          }
+          bestSellersMap[key].qty += i.qty;
+          bestSellersMap[key].revenue += (i.qty * i.price);
+        });
+      });
+
+      const totalRevenue = qrRevenue + walkInRevenue;
+      const todayDate = new Date().toLocaleDateString('am-ET');
+
+      const sortedBestSellers = Object.values(bestSellersMap).sort((a, b) => b.qty - a.qty);
+
+      let bestSellersRows = sortedBestSellers.map((item, index) => `
+        <tr>
+          <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">${index + 1}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px;">${item.nameAm}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">${item.qty}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px; text-align: right;">${item.revenue.toFixed(2)} ETB</td>
+        </tr>
+      `).join('');
+
+      let transactionRows = appState.completedSales.map((sale) => `
+        <tr>
+          <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">#${sale.orderId}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">${sale.tableNum}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">${sale.source}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px; text-align: center;">${sale.timestamp}</td>
+          <td style="border: 1px solid #dddddd; padding: 8px; text-align: right;">${sale.total.toFixed(2)} ETB</td>
+        </tr>
+      `).join('');
+
+      const htmlContent = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+          <meta charset='utf-8'>
+          <title>Smart Cafe Daily Sales Report</title>
+          <style>
+            body { font-family: 'Arial', sans-serif; color: #333; line-height: 1.6; }
+            h1 { color: #0D9488; text-align: center; font-size: 24px; }
+            h2 { color: #064E3B; border-bottom: 2px solid #0D9488; padding-bottom: 5px; font-size: 16px; margin-top: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+            th { background-color: #0D9488; color: white; border: 1px solid #0D9488; padding: 8px; }
+            .summary-box { background-color: #F2FBF8; border: 1px solid #CCFBF1; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+          </style>
+        </head>
+        <body>
+          <h1>☕ SMART CAFE - የዕለቱ የሽያጭ ሪፖርት</h1>
+          <p style="text-align: center; color: #666;">ቀን፦ ${todayDate}</p>
+          
+          <div class="summary-box">
+            <h2>📊 የገቢ ማጠቃለያ (Revenue Summary)</h2>
+            <p><strong>ከQR Scan ገቢ፦</strong> ${qrRevenue.toFixed(2)} ETB</p>
+            <p><strong>ከWalk-in ገቢ፦</strong> ${walkInRevenue.toFixed(2)} ETB</p>
+            <p style="font-size: 18px; color: #064E3B;"><strong>ጠቅላላ የዛሬ ገቢ፦ ${totalRevenue.toFixed(2)} ETB</strong></p>
+            <p><strong>ጠቅላላ የተጠናቀቁ ትዕዛዞች፦</strong> ${appState.completedSales.length}</p>
+          </div>
+
+          <h2>🏆 ተወዳጅ ምግቦችና መጠጦች (Ranked Best Sellers)</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>ተ.ቁ</th>
+                <th>የምግብ/መጠጥ ስም</th>
+                <th>የተሸጠው ብዛት</th>
+                <th>ያመጣው ገቢ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${bestSellersRows || '<tr><td colspan="4" style="text-align:center;">መረጃ የለም</td></tr>'}
+            </tbody>
+          </table>
+
+          <h2>📝 የሁሉም የሽያጭ 거래ዎች ዝርዝር (Transaction Ledger)</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>ትዕዛዝ #</th>
+                <th>ጠረጴዛ</th>
+                <th>ምንጭ</th>
+                <th>ሰዓት</th>
+                <th>ጠቅላላ ሂሳብ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${transactionRows || '<tr><td colspan="5" style="text-align:center;">መረጃ የለም</td></tr>'}
+            </tbody>
+          </table>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob(['\ufeff' + htmlContent], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Smart_Cafe_Report_${todayDate.replace(/\//g, '-')}.doc`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    /* ========================================================================
+       12. UNREAD BADGES & POPUP MODALS
+       ======================================================================== */
+    function updateUnreadBadges() {
+      const kBadge = document.getElementById('kitchenBadge');
+      const bBadge = document.getElementById('baristaBadge');
+
+      if (appState.kitchenUnread > 0) {
+        kBadge.innerText = appState.kitchenUnread;
+        kBadge.classList.remove('hidden');
+      } else {
+        kBadge.classList.add('hidden');
+      }
+
+      if (appState.baristaUnread > 0) {
+        bBadge.innerText = appState.baristaUnread;
+        bBadge.classList.remove('hidden');
+      } else {
+        bBadge.classList.add('hidden');
+      }
+    }
+
+    function checkNewOrderAlerts() {
+      // Play sound if new order received
+      if (appState.kitchenUnread > 0 || appState.baristaUnread > 0) {
+        playChimeSound('order');
+      }
+    }
+
+    function closeSpecialModal() {
+      document.getElementById('specialWelcomeModal').classList.add('hidden');
+    }
+
+    function orderSpecialItem() {
+      addToCart(17); // Special Item ID
+      closeSpecialModal();
+      openCartModal();
+    }
+
+    function showCustomNotice(title, message) {
+      document.getElementById('noticeTitle').innerText = title;
+      document.getElementById('noticeMessage').innerText = message;
+      document.getElementById('customNoticeModal').classList.remove('hidden');
+    }
+
+    function closeNoticeModal() {
+      document.getElementById('customNoticeModal').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
